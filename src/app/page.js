@@ -340,6 +340,7 @@ export default function Home() {
           <option className='text-black' value="12">12 Characters</option>
           <option className='text-black' value="16">16 Characters</option>
           <option className='text-black' value="20">20 Characters</option>
+          
         </select>
       </div>
 
