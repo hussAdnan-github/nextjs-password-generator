@@ -61,8 +61,13 @@ const styles = {
     width: '100%',
     marginTop: '10px',
   },
-   buttonActive: { // For simulating :active state
+  buttonActive: {
     transform: 'scale(0.98)',
+  },
+  buttonLoading: { // Style for loading button
+    backgroundColor: '#0056b3', // Darker blue, similar to hover
+    cursor: 'not-allowed',
+    opacity: 0.8,
   },
   outputSection: {
     marginTop: '25px',
@@ -90,7 +95,7 @@ const styles = {
     lineHeight: '1.6',
   },
   copyButton: {
-    marginLeft: '15px', // For LTR
+    marginLeft: '15px',
     padding: '8px 15px',
     backgroundColor: '#28a745',
     color: 'white',
@@ -107,10 +112,10 @@ const styles = {
     color: '#dc3545',
     fontWeight: '500',
   },
-  hashingTimeText: { // Style for hashing duration
+  hashingTimeText: {
     marginTop: '10px',
     fontSize: '0.9em',
-    color: '#17a2b8', // Info blue color
+    color: '#17a2b8',
   },
   error: {
     color: '#721c24',
@@ -138,10 +143,10 @@ export default function Home() {
   const [generatedPassword, setGeneratedPassword] = useState('');
   const [hashedPassword, setHashedPassword] = useState('');
   const [timeToCrack, setTimeToCrack] = useState('');
-  const [hashingDurationMs, setHashingDurationMs] = useState(null); // State for hashing duration
+  const [hashingDurationMs, setHashingDurationMs] = useState(null);
   const [error, setError] = useState('');
+  const [isLoading, setIsLoading] = useState(false); // <-- New state for loading
 
-  // States for button hover/active effects
   const [isGenerateHovered, setIsGenerateHovered] = useState(false);
   const [isGenerateActive, setIsGenerateActive] = useState(false);
   const [isCopyPassHovered, setIsCopyPassHovered] = useState(false);
@@ -149,11 +154,11 @@ export default function Home() {
   const [isCopyHashHovered, setIsCopyHashHovered] = useState(false);
   const [isCopyHashActive, setIsCopyHashActive] = useState(false);
 
-
   const ALL_CHARS = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
   const ALL_SYMBOLS = '!@#$%^&*()_+-=[]{};\':"\\|,.<>/?';
 
   const generateRandomPassword = (length, numSymbols) => {
+    // ... (rest of the function is the same)
     let password = '';
     const totalLength = parseInt(length) + parseInt(numSymbols);
 
@@ -180,6 +185,7 @@ export default function Home() {
   };
 
   const estimateTimeToCrack = (password, currentCharlength, currentSymbolCount) => {
+    // ... (rest of the function is the same)
     if (!password || password.length === 0) {
       return 'Cannot estimate (empty password)';
     }
@@ -247,23 +253,31 @@ export default function Home() {
     return "Countless eons (extremely strong)";
   };
 
-  const handleGeneratePassword = () => {
-    const pass = generateRandomPassword(charLength, symbolCount);
-    if (!pass) {
-        setGeneratedPassword('');
-        setHashedPassword('');
-        setTimeToCrack('');
-        setHashingDurationMs(null); // Reset hashing duration
-        return;
-    }
+  const handleGeneratePassword = async () => { // <-- Made async for potential future use, not strictly needed for setTimeout
+    setIsLoading(true); // <-- Set loading to true
+    setGeneratedPassword(''); // Clear previous results
+    setHashedPassword('');
+    setTimeToCrack('');
+    setHashingDurationMs(null);
+    setError('');
 
-    setGeneratedPassword(pass);
-    setTimeToCrack(estimateTimeToCrack(pass, charLength, symbolCount));
-
-    let hashOutput = '';
-    const startTime = performance.now(); // <-- Start timing here
+    // Simulate a slight delay to make the loading state more visible for fast operations
+    // In a real app with very fast crypto, you might not even need this or adjust the delay.
+    await new Promise(resolve => setTimeout(resolve, 50)); // Small delay
 
     try {
+      const pass = generateRandomPassword(charLength, symbolCount);
+      if (!pass) {
+          setIsLoading(false); // Reset loading if no pass generated
+          return;
+      }
+
+      setGeneratedPassword(pass);
+      setTimeToCrack(estimateTimeToCrack(pass, charLength, symbolCount));
+
+      let hashOutput = '';
+      const startTime = performance.now();
+
       if (hashType === 'MD5') {
         hashOutput = CryptoJS.MD5(pass).toString(CryptoJS.enc.Hex);
       } else if (hashType === 'SHA1') {
@@ -279,29 +293,30 @@ export default function Home() {
         hash.update(Uint8Array.from(utf16lePassword));
         hashOutput = hash.hex();
       }
-      const endTime = performance.now(); // <-- End timing here
-      setHashingDurationMs(endTime - startTime); // <-- Calculate and store duration
-
-      setHashedPassword(hashOutput);
-      setError('');
-    } catch (err) {
-      const endTime = performance.now(); // Also record time if error occurs
+      const endTime = performance.now();
       setHashingDurationMs(endTime - startTime);
+      setHashedPassword(hashOutput);
+
+    } catch (err) {
       console.error("Hashing error:", err);
       setError(`Error during hashing: ${err.message}`);
-      setHashedPassword('');
+      setHashedPassword(''); // Clear hash on error
+      setHashingDurationMs(null); // Clear duration on error
+    } finally {
+      setIsLoading(false); // <-- Set loading to false in finally block
     }
   };
   
   useEffect(() => {
-    if (generatedPassword) {
+    if (generatedPassword && !isLoading) { // Don't re-estimate if currently loading
       setTimeToCrack(estimateTimeToCrack(generatedPassword, charLength, symbolCount));
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [charLength, symbolCount, generatedPassword]);
+  }, [charLength, symbolCount, generatedPassword, isLoading]);
 
 
   const copyToClipboard = (text) => {
+    // ... (rest of the function is the same)
     if (navigator.clipboard && text) {
       navigator.clipboard.writeText(text)
         .then(() => alert('Copied to clipboard!'))
@@ -323,7 +338,7 @@ export default function Home() {
 
       <div style={styles.formGroup}>
         <label htmlFor="hashType" style={styles.label}>Hashing Algorithm:</label>
-        <select id="hashType" value={hashType} onChange={(e) => setHashType(e.target.value)} style={styles.select}>
+        <select id="hashType" value={hashType} onChange={(e) => setHashType(e.target.value)} style={styles.select} disabled={isLoading}>
           <option className='text-black' value="MD5">MD5</option>
           <option className='text-black' value="SHA1">SHA1</option>
           <option className='text-black' value="NTLM">NTLM</option>
@@ -332,8 +347,8 @@ export default function Home() {
 
       <div style={styles.formGroup}>
         <label htmlFor="charLength" style={styles.label}>Number of Alphanumeric Characters:</label>
-        <select id="charLength" value={charLength} onChange={(e) => setCharLength(parseInt(e.target.value))} style={styles.select}>
-          <option value="0">0 (None)</option>
+        <select id="charLength" value={charLength} onChange={(e) => setCharLength(parseInt(e.target.value))} style={styles.select} disabled={isLoading}>
+          <option className='text-black' value="0">0 (None)</option>
           <option className='text-black' value="3">3 Characters</option>
           <option className='text-black' value="5">5 Characters</option>
           <option className='text-black' value="8">8 Characters</option>
@@ -346,7 +361,7 @@ export default function Home() {
 
       <div style={styles.formGroup}>
         <label htmlFor="symbolCount" style={styles.label}>Number of Symbols:</label>
-        <select id="symbolCount" value={symbolCount} onChange={(e) => setSymbolCount(parseInt(e.target.value))} style={styles.select}>
+        <select id="symbolCount" value={symbolCount} onChange={(e) => setSymbolCount(parseInt(e.target.value))} style={styles.select} disabled={isLoading}>
           <option className='text-black' value="0">0 (None)</option>
           <option className='text-black' value="3">3 Symbols</option>
           <option className='text-black'  value="5">5 Symbols</option>
@@ -360,20 +375,21 @@ export default function Home() {
         onClick={handleGeneratePassword} 
         style={{
             ...styles.button, 
-            backgroundColor: isGenerateHovered ? '#0056b3' : styles.button.backgroundColor,
-            ...(isGenerateActive ? styles.buttonActive : {})
+            ...(isLoading ? styles.buttonLoading : (isGenerateHovered ? {backgroundColor: '#0056b3'} : {})),
+            ...(isGenerateActive && !isLoading ? styles.buttonActive : {})
         }}
-        onMouseOver={() => setIsGenerateHovered(true)}
+        onMouseOver={() => !isLoading && setIsGenerateHovered(true)}
         onMouseOut={() => setIsGenerateHovered(false)}
-        onMouseDown={() => setIsGenerateActive(true)}
+        onMouseDown={() => !isLoading && setIsGenerateActive(true)}
         onMouseUp={() => setIsGenerateActive(false)}
-        onTouchStart={() => setIsGenerateActive(true)}
+        onTouchStart={() => !isLoading && setIsGenerateActive(true)}
         onTouchEnd={() => setIsGenerateActive(false)}
+        disabled={isLoading} // <-- Disable button when loading
       >
-        Generate Password & Hash
+        {isLoading ? 'Processing...' : 'Generate Password & Hash'} {/* <-- Change text when loading */}
       </button>
 
-      {generatedPassword && (
+      {generatedPassword && !isLoading && ( // <-- Hide output sections while loading new data
         <div style={styles.outputSection}>
           <h3 style={styles.outputHeader}>Generated Password:</h3>
           <div style={styles.flexRow}>
@@ -403,7 +419,7 @@ export default function Home() {
         </div>
       )}
 
-      {hashedPassword && (
+      {hashedPassword && !isLoading && ( // <-- Hide output sections while loading new data
         <div style={styles.outputSection}>
           <h3 style={styles.outputHeader}>Calculated Hash ({hashType}):</h3>
           <div style={styles.flexRow}>
@@ -425,7 +441,6 @@ export default function Home() {
                 Copy
             </button>
           </div>
-          {/* Display Hashing Duration */}
           {hashingDurationMs !== null && (
             <p style={styles.hashingTimeText}>
               <strong>Hashing duration:</strong> {hashingDurationMs.toFixed(2)} ms
